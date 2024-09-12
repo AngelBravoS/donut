@@ -1,7 +1,7 @@
-#include <stdio.h>
-#include <math.h>
-#include <unistd.h>
-#include <string.h>
+#include <iostream>
+#include <cmath>
+#include <unistd.h>  // Para usleep()
+#include <cstring>   // Para strcpy y sprintf
 
 #define WIDTH 110
 #define HEIGHT 50
@@ -15,6 +15,8 @@
 #define WHITE "\033[37m"
 #define RESET "\033[0m"
 
+using namespace std;
+
 const char* colors[] = {RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE};
 const int num_colors = sizeof(colors) / sizeof(colors[0]);
 
@@ -22,7 +24,8 @@ const char shades[] = " .:!/r(l1Z4H9W8$@";
 const int num_shades = sizeof(shades) - 1;
 
 void clear_screen() {
-    printf("\033[2J\033[H");
+    // Limpia la pantalla y reposiciona el cursor
+    cout << "\033[2J\033[H";
 }
 
 void draw_torus(double A, double B) {
@@ -51,25 +54,25 @@ void draw_torus(double A, double B) {
             double x = circleX * (cos(B) * cosP + sin(A) * sin(B) * sinP) - circleY * cos(A) * sin(B);
             double y = circleX * (sin(B) * cosP - sin(A) * cos(B) * sinP) + circleY * cos(A) * cos(B);
             double z = K2 + cos(A) * circleX * sinP + circleY * sin(A);
-            double ooz = 1 / z;  // "one over z"
+            double ooz = 1 / z;  // "uno sobre z"
 
-            int xp = (int)(WIDTH / 2 + K1 * ooz * x);
-            int yp = (int)(HEIGHT / 2 - K1 * ooz * y / 2);
+            int xp = static_cast<int>(WIDTH / 2 + K1 * ooz * x);
+            int yp = static_cast<int>(HEIGHT / 2 - K1 * ooz * y / 2);
 
-            // Lighting and depth calculation
+            // Cálculo de iluminación y profundidad
             double L = cosP * cosT * sin(B) - cos(A) * cosT * sinP - sin(A) * sinT + 0.5;
-            double depth = (z - K2 + R1 + R2) / (2 * (R1 + R2));  // Normalize depth
+            double depth = (z - K2 + R1 + R2) / (2 * (R1 + R2));  // Normalizar la profundidad
 
             if (L > 0 && xp >= 0 && xp < WIDTH && yp >= 0 && yp < HEIGHT) {
                 if (ooz > z_buffer[yp][xp]) {
                     z_buffer[yp][xp] = ooz;
-                    
-                    // Combine lighting and depth for shading
-                    int shade_index = (int)((L * 0.7 + depth * 0.3) * (num_shades - 1));
+
+                    // Combinar iluminación y profundidad para el sombreado
+                    int shade_index = static_cast<int>((L * 0.7 + depth * 0.3) * (num_shades - 1));
                     shade_index = (shade_index < 0) ? 0 : (shade_index >= num_shades ? num_shades - 1 : shade_index);
 
-                    // Use depth to determine color
-                    int color_index = (int)(depth * (num_colors - 1));
+                    // Usar la profundidad para determinar el color
+                    int color_index = static_cast<int>(depth * (num_colors - 1));
                     color_index = (color_index < 0) ? 0 : (color_index >= num_colors ? num_colors - 1 : color_index);
 
                     sprintf(screen[yp][xp], "%s%c" RESET, colors[color_index], shades[shade_index]);
@@ -80,18 +83,18 @@ void draw_torus(double A, double B) {
 
     for (int y = 0; y < HEIGHT; y++) {
         for (int x = 0; x < WIDTH; x++) {
-            printf("%s", screen[y][x]);
+            cout << screen[y][x];
         }
-        printf("\n");
+        cout << endl;
     }
 }
 
 int main() {
     double A = 0, B = 0;
-    while (1) {
+    while (true) {
         clear_screen();
         draw_torus(A, B);
-        usleep(50000);
+        usleep(50000);  // Pausa de 50 ms
         A += 0.04;
         B += 0.02;
     }
