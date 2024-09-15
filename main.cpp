@@ -1,10 +1,8 @@
 #include <iostream>
 #include <cmath>
-#include <unistd.h>  // Para usleep()
-#include <cstring>   // Para strcpy y sprintf
-
-#define WIDTH 110
-#define HEIGHT 50
+#include <unistd.h>
+#include <cstring>
+#include <vector>
 
 #define RED "\033[31m"
 #define GREEN "\033[32m"
@@ -23,77 +21,89 @@ const int num_colors = sizeof(colors) / sizeof(colors[0]);
 const char shades[] = " .:!/r(l1Z4H9W8$@";
 const int num_shades = sizeof(shades) - 1;
 
+// Función para limpiar la pantalla
 void clear_screen() {
-    // Limpia la pantalla y reposiciona el cursor
     cout << "\033[2J\033[H";
 }
 
-void draw_torus(double A, double B) {
-    char screen[HEIGHT][WIDTH][20];
-    double z_buffer[HEIGHT][WIDTH];
-
-    for (int y = 0; y < HEIGHT; y++) {
-        for (int x = 0; x < WIDTH; x++) {
-            strcpy(screen[y][x], " ");
-            z_buffer[y][x] = -1e10;
-        }
+// Función para obtener el tamaño de la terminal (Linux)
+void get_terminal_size(int &width, int &height) {
+    FILE* fp = popen("stty size", "r");
+    if (fp) {
+        fscanf(fp, "%d %d", &height, &width);
+        pclose(fp);
     }
+}
 
-    double R1 = 1;
-    double R2 = 2;
-    double K2 = 5;
+// Dibuja el toroide con optimizaciones
+void draw_torus(double A, double B, int WIDTH, int HEIGHT) {
+    vector<vector<string>> screen(HEIGHT, vector<string>(WIDTH, " "));
+    vector<vector<double>> z_buffer(HEIGHT, vector<double>(WIDTH, -1e10));
+
+    double R1 = 1, R2 = 2, K2 = 5;
     double K1 = WIDTH * K2 * 3.0 / (8.0 * (R1 + R2));
 
+    // Precalcular valores comunes
+    double cosA = cos(A), sinA = sin(A), cosB = cos(B), sinB = sin(B);
+
+    // Generar toroide
     for (double theta = 0; theta < 2 * M_PI; theta += 0.07) {
+        double cosT = cos(theta), sinT = sin(theta);
         for (double phi = 0; phi < 2 * M_PI; phi += 0.02) {
             double cosP = cos(phi), sinP = sin(phi);
-            double cosT = cos(theta), sinT = sin(theta);
+
             double circleX = R2 + R1 * cosT;
             double circleY = R1 * sinT;
 
-            double x = circleX * (cos(B) * cosP + sin(A) * sin(B) * sinP) - circleY * cos(A) * sin(B);
-            double y = circleX * (sin(B) * cosP - sin(A) * cos(B) * sinP) + circleY * cos(A) * cos(B);
-            double z = K2 + cos(A) * circleX * sinP + circleY * sin(A);
-            double ooz = 1 / z;  // "uno sobre z"
+            double x = circleX * (cosB * cosP + sinA * sinB * sinP) - circleY * cosA * sinB;
+            double y = circleX * (sinB * cosP - sinA * cosB * sinP) + circleY * cosA * cosB;
+            double z = K2 + cosA * circleX * sinP + circleY * sinA;
+            double ooz = 1 / z;
 
             int xp = static_cast<int>(WIDTH / 2 + K1 * ooz * x);
             int yp = static_cast<int>(HEIGHT / 2 - K1 * ooz * y / 2);
 
             // Cálculo de iluminación y profundidad
-            double L = cosP * cosT * sin(B) - cos(A) * cosT * sinP - sin(A) * sinT + 0.5;
-            double depth = (z - K2 + R1 + R2) / (2 * (R1 + R2));  // Normalizar la profundidad
+            double L = cosP * cosT * sinB - cosA * cosT * sinP - sinA * sinT + 0.5;
+            double depth = (z - K2 + R1 + R2) / (2 * (R1 + R2));
 
             if (L > 0 && xp >= 0 && xp < WIDTH && yp >= 0 && yp < HEIGHT) {
                 if (ooz > z_buffer[yp][xp]) {
                     z_buffer[yp][xp] = ooz;
 
-                    // Combinar iluminación y profundidad para el sombreado
                     int shade_index = static_cast<int>((L * 0.7 + depth * 0.3) * (num_shades - 1));
                     shade_index = (shade_index < 0) ? 0 : (shade_index >= num_shades ? num_shades - 1 : shade_index);
 
-                    // Usar la profundidad para determinar el color
                     int color_index = static_cast<int>(depth * (num_colors - 1));
                     color_index = (color_index < 0) ? 0 : (color_index >= num_colors ? num_colors - 1 : color_index);
 
-                    sprintf(screen[yp][xp], "%s%c" RESET, colors[color_index], shades[shade_index]);
+                    screen[yp][xp] = string(colors[color_index]) + shades[shade_index] + RESET;
                 }
             }
         }
     }
 
+    // Usar un buffer de salida para minimizar operaciones I/O
+    string output;
     for (int y = 0; y < HEIGHT; y++) {
         for (int x = 0; x < WIDTH; x++) {
-            cout << screen[y][x];
+            output += screen[y][x];
         }
-        cout << endl;
+        output += "\n";
     }
+    cout << output;
 }
 
 int main() {
     double A = 0, B = 0;
+    int WIDTH = 110, HEIGHT = 50;
+
+    // Detectar tamaño de la terminal para ajustar WIDTH y HEIGHT
+    get_terminal_size(WIDTH, HEIGHT);
+
     while (true) {
         clear_screen();
-        draw_torus(A, B);
+        draw_torus(A, B, WIDTH, HEIGHT);
         usleep(50000);  // Pausa de 50 ms
         A += 0.04;
         B += 0.02;
